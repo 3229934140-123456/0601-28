@@ -86,6 +86,16 @@ router.get('/admin/stats', adminController.getStats);
 router.get('/admin/theme-stats', adminController.getThemeStats);
 router.get('/admin/theme-trend', adminController.getThemeTrend);
 router.get('/admin/funnel-stats', adminController.getFunnelStats);
+router.get('/admin/warning-overview', adminController.getWarningOverview);
+
+router.get('/admin/reviews', adminController.reviewList);
+router.get('/admin/reviews/:id', adminController.reviewDetail);
+router.put('/admin/reviews/batch-status', adminController.batchUpdateReviewStatus);
+
+router.get('/admin/export/feedbacks', adminController.exportFeedbacks);
+router.get('/admin/export/sensitive-words', adminController.exportSensitiveWords);
+router.get('/admin/export/user-preferences', adminController.exportUserPreferences);
+router.get('/admin/export/funnel-stats', adminController.exportFunnelStats);
 
 router.get('/feedbacks', adminController.feedbackList);
 router.get('/feedbacks/:id', adminController.feedbackDetail);

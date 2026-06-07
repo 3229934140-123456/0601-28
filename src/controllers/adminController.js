@@ -41,7 +41,7 @@ const adminController = {
   },
 
   getThemeStats(req, res) {
-    const { start_date, end_date, type, sort_by = 'draw_count', page = 1, pageSize = 20 } = req.query;
+    const { start_date, end_date, type, sort_by = 'card_count', page = 1, pageSize = 20 } = req.query;
     const p = parseInt(page);
     const ps = parseInt(pageSize);
 
@@ -63,8 +63,8 @@ const adminController = {
 
     const whereSQL = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
-    const validSortFields = ['view_count', 'draw_count', 'fortune_count', 'answer_count', 'collect_count', 'share_count', 'use_count'];
-    const sortField = validSortFields.includes(sort_by) ? sort_by : 'draw_count';
+    const validSortFields = ['view_count', 'card_count', 'lot_count', 'fortune_count', 'answer_count', 'collect_count', 'share_count', 'feedback_count', 'use_count'];
+    const sortField = validSortFields.includes(sort_by) ? sort_by : 'card_count';
 
     const countSQL = `
       SELECT COUNT(DISTINCT s.theme_id) as total
@@ -81,12 +81,14 @@ const adminController = {
         t.type,
         t.cover_image,
         SUM(s.view_count) as view_count,
-        SUM(s.draw_count) as draw_count,
+        SUM(s.card_count) as card_count,
+        SUM(s.lot_count) as lot_count,
         SUM(s.fortune_count) as fortune_count,
         SUM(s.answer_count) as answer_count,
         SUM(s.collect_count) as collect_count,
         SUM(s.share_count) as share_count,
-        (SUM(s.draw_count) + SUM(s.fortune_count) + SUM(s.answer_count)) as use_count
+        SUM(s.feedback_count) as feedback_count,
+        (SUM(s.card_count) + SUM(s.lot_count) + SUM(s.fortune_count) + SUM(s.answer_count)) as use_count
       FROM theme_daily_stats s
       LEFT JOIN theme t ON t.id = s.theme_id
       ${whereSQL}
@@ -99,12 +101,14 @@ const adminController = {
     const totalsSQL = `
       SELECT
         SUM(s.view_count) as view_count,
-        SUM(s.draw_count) as draw_count,
+        SUM(s.card_count) as card_count,
+        SUM(s.lot_count) as lot_count,
         SUM(s.fortune_count) as fortune_count,
         SUM(s.answer_count) as answer_count,
         SUM(s.collect_count) as collect_count,
         SUM(s.share_count) as share_count,
-        (SUM(s.draw_count) + SUM(s.fortune_count) + SUM(s.answer_count)) as use_count
+        SUM(s.feedback_count) as feedback_count,
+        (SUM(s.card_count) + SUM(s.lot_count) + SUM(s.fortune_count) + SUM(s.answer_count)) as use_count
       FROM theme_daily_stats s
       LEFT JOIN theme t ON t.id = s.theme_id
       ${whereSQL}
@@ -115,11 +119,13 @@ const adminController = {
       items,
       totals: {
         view_count: totals?.view_count || 0,
-        draw_count: totals?.draw_count || 0,
+        card_count: totals?.card_count || 0,
+        lot_count: totals?.lot_count || 0,
         fortune_count: totals?.fortune_count || 0,
         answer_count: totals?.answer_count || 0,
         collect_count: totals?.collect_count || 0,
         share_count: totals?.share_count || 0,
+        feedback_count: totals?.feedback_count || 0,
         use_count: totals?.use_count || 0,
       },
       sort_by: sortField,
@@ -154,12 +160,14 @@ const adminController = {
       SELECT
         stat_date,
         SUM(view_count) as view_count,
-        SUM(draw_count) as draw_count,
+        SUM(card_count) as card_count,
+        SUM(lot_count) as lot_count,
         SUM(fortune_count) as fortune_count,
         SUM(answer_count) as answer_count,
         SUM(collect_count) as collect_count,
         SUM(share_count) as share_count,
-        (SUM(draw_count) + SUM(fortune_count) + SUM(answer_count)) as total_count
+        SUM(feedback_count) as feedback_count,
+        (SUM(card_count) + SUM(lot_count) + SUM(fortune_count) + SUM(answer_count)) as total_count
       FROM theme_daily_stats
       WHERE ${where.join(' AND ')}
       GROUP BY stat_date
@@ -177,11 +185,13 @@ const adminController = {
       trendMap[dateStr] = {
         date: dateStr,
         view_count: 0,
-        draw_count: 0,
+        card_count: 0,
+        lot_count: 0,
         fortune_count: 0,
         answer_count: 0,
         collect_count: 0,
         share_count: 0,
+        feedback_count: 0,
         total_count: 0,
       };
     }
@@ -191,18 +201,20 @@ const adminController = {
         trendMap[row.stat_date] = {
           date: row.stat_date,
           view_count: row.view_count || 0,
-          draw_count: row.draw_count || 0,
+          card_count: row.card_count || 0,
+          lot_count: row.lot_count || 0,
           fortune_count: row.fortune_count || 0,
           answer_count: row.answer_count || 0,
           collect_count: row.collect_count || 0,
           share_count: row.share_count || 0,
+          feedback_count: row.feedback_count || 0,
           total_count: row.total_count || 0,
         };
       }
     }
 
     const trend = dates.map(d => trendMap[d]);
-    const indicators = ['view_count', 'draw_count', 'fortune_count', 'answer_count', 'collect_count', 'share_count', 'total_count'];
+    const indicators = ['view_count', 'card_count', 'lot_count', 'fortune_count', 'answer_count', 'collect_count', 'share_count', 'feedback_count', 'total_count'];
 
     res.json(success({
       dates,
@@ -239,32 +251,31 @@ const adminController = {
     const totalRow = db.prepare(`
       SELECT
         SUM(s.view_count) as view_count,
-        SUM(s.draw_count) as draw_count,
+        SUM(s.card_count) as card_count,
+        SUM(s.lot_count) as lot_count,
         SUM(s.fortune_count) as fortune_count,
         SUM(s.answer_count) as answer_count,
         SUM(s.collect_count) as collect_count,
-        SUM(s.share_count) as share_count
+        SUM(s.share_count) as share_count,
+        SUM(s.feedback_count) as feedback_count
       FROM theme_daily_stats s
       ${whereSQL}
     `).get(...params);
 
-    const feedbackCount = db.prepare(`
-      SELECT COUNT(*) as c FROM feedback
-      WHERE DATE(created_at) >= ? AND DATE(created_at) <= ?
-    `).get(startDate, endDate).c;
-
     const view = totalRow?.view_count || 0;
-    const draw = totalRow?.draw_count || 0;
+    const card = totalRow?.card_count || 0;
+    const lot = totalRow?.lot_count || 0;
     const fortune = totalRow?.fortune_count || 0;
     const answer = totalRow?.answer_count || 0;
-    const useCount = draw + fortune + answer;
+    const useCount = card + lot + fortune + answer;
     const collect = totalRow?.collect_count || 0;
     const share = totalRow?.share_count || 0;
-    const feedback = feedbackCount || 0;
+    const feedback = totalRow?.feedback_count || 0;
 
     const funnelSteps = [
       { key: 'view', name: '浏览', count: view, rate: view > 0 ? 100 : 0 },
-      { key: 'draw', name: '抽牌/抽签', count: draw, rate: view > 0 ? (draw / view * 100) : 0 },
+      { key: 'card', name: '抽牌', count: card, rate: view > 0 ? (card / view * 100) : 0 },
+      { key: 'lot', name: '抽签', count: lot, rate: view > 0 ? (lot / view * 100) : 0 },
       { key: 'fortune', name: '测算', count: fortune, rate: view > 0 ? (fortune / view * 100) : 0 },
       { key: 'answer', name: '答题', count: answer, rate: view > 0 ? (answer / view * 100) : 0 },
       { key: 'use', name: '总使用', count: useCount, rate: view > 0 ? (useCount / view * 100) : 0 },
@@ -277,27 +288,18 @@ const adminController = {
       SELECT
         s.stat_date,
         SUM(s.view_count) as view_count,
-        SUM(s.draw_count) as draw_count,
+        SUM(s.card_count) as card_count,
+        SUM(s.lot_count) as lot_count,
         SUM(s.fortune_count) as fortune_count,
         SUM(s.answer_count) as answer_count,
         SUM(s.collect_count) as collect_count,
-        SUM(s.share_count) as share_count
+        SUM(s.share_count) as share_count,
+        SUM(s.feedback_count) as feedback_count
       FROM theme_daily_stats s
       ${whereSQL}
       GROUP BY s.stat_date
       ORDER BY s.stat_date ASC
     `).all(...params);
-
-    const dailyFb = db.prepare(`
-      SELECT DATE(created_at) as stat_date, COUNT(*) as feedback_count
-      FROM feedback
-      WHERE DATE(created_at) >= ? AND DATE(created_at) <= ?
-      GROUP BY DATE(created_at)
-      ORDER BY stat_date ASC
-    `).all(startDate, endDate);
-
-    const fbMap = {};
-    for (const f of dailyFb) fbMap[f.stat_date] = f.feedback_count;
 
     const dates = [];
     const dailyTrend = [];
@@ -311,30 +313,34 @@ const adminController = {
       const dateStr = d.toISOString().split('T')[0];
       dates.push(dateStr);
       const row = dailyMap[dateStr] || {};
-      const fb = fbMap[dateStr] || 0;
       const v = row.view_count || 0;
-      const dr = row.draw_count || 0;
-      const fr = row.fortune_count || 0;
-      const an = row.answer_count || 0;
-      const use = dr + fr + an;
+      const c = row.card_count || 0;
+      const l = row.lot_count || 0;
+      const f = row.fortune_count || 0;
+      const a = row.answer_count || 0;
+      const use = c + l + f + a;
       const col = row.collect_count || 0;
       const sh = row.share_count || 0;
+      const fb = row.feedback_count || 0;
 
       dailyTrend.push({
         date: dateStr,
         view_count: v,
-        draw_count: dr,
-        fortune_count: fr,
-        answer_count: an,
+        card_count: c,
+        lot_count: l,
+        fortune_count: f,
+        answer_count: a,
         use_count: use,
         collect_count: col,
         share_count: sh,
         feedback_count: fb,
-        draw_rate: v > 0 ? (dr / v * 100) : 0,
-        fortune_rate: v > 0 ? (fr / v * 100) : 0,
-        answer_rate: v > 0 ? (an / v * 100) : 0,
+        card_rate: v > 0 ? (c / v * 100) : 0,
+        lot_rate: v > 0 ? (l / v * 100) : 0,
+        fortune_rate: v > 0 ? (f / v * 100) : 0,
+        answer_rate: v > 0 ? (a / v * 100) : 0,
         collect_rate: use > 0 ? (col / use * 100) : 0,
         share_rate: use > 0 ? (sh / use * 100) : 0,
+        feedback_rate: use > 0 ? (fb / use * 100) : 0,
       });
     }
 
@@ -342,7 +348,8 @@ const adminController = {
       funnel: funnelSteps,
       total: {
         view_count: view,
-        draw_count: draw,
+        card_count: card,
+        lot_count: lot,
         fortune_count: fortune,
         answer_count: answer,
         use_count: useCount,
@@ -411,10 +418,10 @@ const adminController = {
     const anonymousId = fb.anonymous_id;
 
     const recentThemes = db.prepare(`
-      SELECT DISTINCT t.id, t.name, t.type, t.cover_image, MAX(fr.created_at) as last_time
-      FROM fortune_result fr
-      LEFT JOIN theme t ON t.id = fr.theme_id
-      WHERE fr.anonymous_id = ?
+      SELECT DISTINCT t.id, t.name, t.type, t.cover_image, MAX(v.created_at) as last_time
+      FROM user_view_log v
+      LEFT JOIN theme t ON t.id = v.theme_id
+      WHERE v.anonymous_id = ?
       GROUP BY t.id
       ORDER BY last_time DESC
       LIMIT 10
@@ -470,6 +477,40 @@ const adminController = {
       INSERT INTO feedback (content, contact, anonymous_id)
       VALUES (?, ?, ?)
     `).run(content, contact || '', anonymousId);
+
+    const words = db.prepare('SELECT word, level FROM sensitive_word').all();
+    const hit = [];
+    const levelCount = {};
+
+    for (const w of words) {
+      if (content.includes(w.word)) {
+        hit.push({ word: w.word, level: w.level });
+        levelCount[w.level] = (levelCount[w.level] || 0) + 1;
+      }
+    }
+
+    if (hit.length > 0) {
+      let masked = content;
+      for (const h of hit) {
+        masked = masked.split(h.word).join('*'.repeat(h.word.length));
+      }
+      const maxLevel = Math.max(...hit.map(h => h.level));
+
+      db.prepare(`
+        INSERT INTO content_review
+          (content_type, content_id, content_text, masked_content, hit_words, risk_level, theme_id, anonymous_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'feedback',
+        result.lastInsertRowid,
+        content,
+        masked,
+        JSON.stringify(hit),
+        maxLevel,
+        null,
+        anonymousId
+      );
+    }
 
     res.json(success({ id: result.lastInsertRowid }));
   },
@@ -866,6 +907,485 @@ const adminController = {
     }
 
     res.json(success({ updated: ids.length }));
+  },
+
+  reviewList(req, res) {
+    const {
+      page = 1, pageSize = 20,
+      risk_level, content_type, anonymous_id, status,
+      keyword, start_date, end_date
+    } = req.query;
+    const p = parseInt(page);
+    const ps = parseInt(pageSize);
+
+    const where = [];
+    const params = [];
+
+    if (risk_level) {
+      where.push('risk_level = ?');
+      params.push(parseInt(risk_level));
+    }
+    if (content_type) {
+      where.push('content_type = ?');
+      params.push(content_type);
+    }
+    if (anonymous_id) {
+      where.push('anonymous_id = ?');
+      params.push(anonymous_id);
+    }
+    if (status !== undefined && status !== '') {
+      where.push('status = ?');
+      params.push(parseInt(status));
+    }
+    if (keyword) {
+      where.push('content_text LIKE ?');
+      params.push(`%${keyword}%`);
+    }
+    if (start_date) {
+      where.push('DATE(created_at) >= ?');
+      params.push(start_date);
+    }
+    if (end_date) {
+      where.push('DATE(created_at) <= ?');
+      params.push(end_date);
+    }
+
+    const whereSQL = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+    const total = db.prepare(`SELECT COUNT(*) as c FROM content_review ${whereSQL}`).get(...params).c;
+    const items = db.prepare(`
+      SELECT r.*, t.name as theme_name
+      FROM content_review r
+      LEFT JOIN theme t ON t.id = r.theme_id
+      ${whereSQL}
+      ORDER BY r.id DESC
+      LIMIT ? OFFSET ?
+    `).all(...params, ps, (p - 1) * ps);
+
+    for (const item of items) {
+      if (item.hit_words) {
+        try { item.hit_words = JSON.parse(item.hit_words); } catch (e) {}
+      }
+    }
+
+    res.json(success({
+      items,
+      ...buildPagination(p, ps, total),
+    }));
+  },
+
+  reviewDetail(req, res) {
+    const { id } = req.params;
+
+    const review = db.prepare(`
+      SELECT r.*, t.name as theme_name, t.type as theme_type
+      FROM content_review r
+      LEFT JOIN theme t ON t.id = r.theme_id
+      WHERE r.id = ?
+    `).get(id);
+
+    if (!review) {
+      return res.status(404).json(error('审核记录不存在'));
+    }
+
+    if (review.hit_words) {
+      try { review.hit_words = JSON.parse(review.hit_words); } catch (e) {}
+    }
+
+    let userProfile = null;
+    if (review.anonymous_id) {
+      const recentThemes = db.prepare(`
+        SELECT DISTINCT t.id, t.name, t.type, MAX(v.created_at) as last_time
+        FROM user_view_log v
+        LEFT JOIN theme t ON t.id = v.theme_id
+        WHERE v.anonymous_id = ?
+        GROUP BY t.id
+        ORDER BY last_time DESC
+        LIMIT 5
+      `).all(review.anonymous_id);
+
+      const recentResults = db.prepare(`
+        SELECT fr.id, fr.title, fr.result_type, fr.created_at, t.name as theme_name
+        FROM fortune_result fr
+        LEFT JOIN theme t ON t.id = fr.theme_id
+        WHERE fr.anonymous_id = ?
+        ORDER BY fr.id DESC
+        LIMIT 5
+      `).all(review.anonymous_id);
+
+      const reviewCount = db.prepare(`
+        SELECT COUNT(*) as c FROM content_review WHERE anonymous_id = ?
+      `).get(review.anonymous_id).c;
+
+      userProfile = {
+        anonymous_id: review.anonymous_id,
+        recent_themes: recentThemes,
+        recent_results: recentResults,
+        review_count: reviewCount,
+      };
+    }
+
+    res.json(success({
+      review,
+      user_profile: userProfile,
+    }));
+  },
+
+  batchUpdateReviewStatus(req, res) {
+    const { ids, status } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json(error('请选择要操作的记录'));
+    }
+    if (status === undefined) {
+      return res.status(400).json(error('状态不能为空'));
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    const sql = `UPDATE content_review SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`;
+    const result = db.prepare(sql).run(parseInt(status), ...ids);
+
+    res.json(success({ updated: result.changes }));
+  },
+
+  exportFeedbacks(req, res) {
+    const { status, keyword, contact, start_date, end_date } = req.query;
+
+    const where = [];
+    const params = [];
+
+    if (status !== undefined && status !== '') {
+      where.push('f.status = ?');
+      params.push(parseInt(status));
+    }
+    if (keyword) {
+      where.push('f.content LIKE ?');
+      params.push(`%${keyword}%`);
+    }
+    if (contact) {
+      where.push('f.contact LIKE ?');
+      params.push(`%${contact}%`);
+    }
+    if (start_date) {
+      where.push('DATE(f.created_at) >= ?');
+      params.push(start_date);
+    }
+    if (end_date) {
+      where.push('DATE(f.created_at) <= ?');
+      params.push(end_date);
+    }
+
+    const whereSQL = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+    const rows = db.prepare(`
+      SELECT
+        f.id, f.content, f.contact, f.anonymous_id, f.status,
+        CASE f.status
+          WHEN 0 THEN '待处理'
+          WHEN 1 THEN '处理中'
+          WHEN 2 THEN '已处理'
+          WHEN 3 THEN '已忽略'
+          ELSE '未知'
+        END as status_text,
+        f.created_at
+      FROM feedback f
+      ${whereSQL}
+      ORDER BY f.id DESC
+    `).all(...params);
+
+    const headers = ['ID', '反馈内容', '联系方式', '匿名用户', '状态', '状态描述', '提交时间'];
+    const lines = [headers.join(',')];
+
+    for (const r of rows) {
+      lines.push([
+        r.id,
+        `"${(r.content || '').replace(/"/g, '""')}"`,
+        `"${(r.contact || '').replace(/"/g, '""')}"`,
+        r.anonymous_id || '',
+        r.status,
+        r.status_text,
+        r.created_at,
+      ].join(','));
+    }
+
+    const csv = '\ufeff' + lines.join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=feedbacks.csv');
+    res.send(csv);
+  },
+
+  exportSensitiveWords(req, res) {
+    const { level, keyword, start_date, end_date } = req.query;
+
+    const where = [];
+    const params = [];
+
+    if (level) {
+      where.push('level = ?');
+      params.push(parseInt(level));
+    }
+    if (keyword) {
+      where.push('word LIKE ?');
+      params.push(`%${keyword}%`);
+    }
+    if (start_date) {
+      where.push('DATE(created_at) >= ?');
+      params.push(start_date);
+    }
+    if (end_date) {
+      where.push('DATE(created_at) <= ?');
+      params.push(end_date);
+    }
+
+    const whereSQL = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+    const rows = db.prepare(`
+      SELECT
+        id, word, level,
+        CASE level
+          WHEN 1 THEN '一般'
+          WHEN 2 THEN '高危'
+          ELSE '未知'
+        END as level_text,
+        created_at
+      FROM sensitive_word
+      ${whereSQL}
+      ORDER BY id DESC
+    `).all(...params);
+
+    const headers = ['ID', '敏感词', '等级', '等级描述', '创建时间'];
+    const lines = [headers.join(',')];
+
+    for (const r of rows) {
+      lines.push([
+        r.id,
+        `"${r.word.replace(/"/g, '""')}"`,
+        r.level,
+        r.level_text,
+        r.created_at,
+      ].join(','));
+    }
+
+    const csv = '\ufeff' + lines.join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=sensitive_words.csv');
+    res.send(csv);
+  },
+
+  exportUserPreferences(req, res) {
+    const { anonymous_id, theme_type, preference_type, keyword } = req.query;
+
+    const where = [];
+    const params = [];
+
+    if (anonymous_id) {
+      where.push('up.anonymous_id = ?');
+      params.push(anonymous_id);
+    }
+    if (preference_type) {
+      where.push('up.preference_type = ?');
+      params.push(preference_type);
+    }
+    if (keyword) {
+      where.push('up.value LIKE ?');
+      params.push(`%${keyword}%`);
+    }
+
+    let joinSQL = '';
+    if (theme_type) {
+      joinSQL = 'LEFT JOIN theme t ON t.id = up.theme_id';
+      where.push('t.type = ?');
+      params.push(theme_type);
+    }
+
+    const whereSQL = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+    const rows = db.prepare(`
+      SELECT
+        up.id, up.anonymous_id, up.theme_id, t.name as theme_name, t.type as theme_type,
+        up.preference_type, up.value, up.created_at
+      FROM user_preference up
+      LEFT JOIN theme t ON t.id = up.theme_id
+      ${whereSQL}
+      ORDER BY up.id DESC
+    `).all(...params);
+
+    const headers = ['ID', '匿名用户', '主题ID', '主题名称', '主题类型', '偏好类型', '偏好值', '创建时间'];
+    const lines = [headers.join(',')];
+
+    for (const r of rows) {
+      lines.push([
+        r.id,
+        r.anonymous_id || '',
+        r.theme_id || '',
+        `"${(r.theme_name || '').replace(/"/g, '""')}"`,
+        r.theme_type || '',
+        r.preference_type || '',
+        `"${(r.value || '').replace(/"/g, '""')}"`,
+        r.created_at,
+      ].join(','));
+    }
+
+    const csv = '\ufeff' + lines.join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=user_preferences.csv');
+    res.send(csv);
+  },
+
+  exportFunnelStats(req, res) {
+    const { theme_id, start_date, end_date } = req.query;
+
+    let startDate = start_date;
+    let endDate = end_date;
+    if (!startDate) {
+      const d = new Date();
+      d.setDate(d.getDate() - 29);
+      startDate = d.toISOString().split('T')[0];
+    }
+    if (!endDate) {
+      endDate = new Date().toISOString().split('T')[0];
+    }
+
+    const where = ['s.stat_date >= ?', 's.stat_date <= ?'];
+    const params = [startDate, endDate];
+
+    if (theme_id) {
+      where.push('s.theme_id = ?');
+      params.push(theme_id);
+    }
+
+    const whereSQL = 'WHERE ' + where.join(' AND ');
+
+    const rows = db.prepare(`
+      SELECT
+        s.stat_date,
+        SUM(s.view_count) as view_count,
+        SUM(s.card_count) as card_count,
+        SUM(s.lot_count) as lot_count,
+        SUM(s.fortune_count) as fortune_count,
+        SUM(s.answer_count) as answer_count,
+        SUM(s.collect_count) as collect_count,
+        SUM(s.share_count) as share_count,
+        SUM(s.feedback_count) as feedback_count
+      FROM theme_daily_stats s
+      ${whereSQL}
+      GROUP BY s.stat_date
+      ORDER BY s.stat_date ASC
+    `).all(...params);
+
+    const headers = ['日期', '浏览', '抽牌', '抽签', '测算', '答题', '收藏', '分享', '反馈', '总使用'];
+    const lines = [headers.join(',')];
+
+    for (const r of rows) {
+      const use = (r.card_count || 0) + (r.lot_count || 0) + (r.fortune_count || 0) + (r.answer_count || 0);
+      lines.push([
+        r.stat_date,
+        r.view_count || 0,
+        r.card_count || 0,
+        r.lot_count || 0,
+        r.fortune_count || 0,
+        r.answer_count || 0,
+        r.collect_count || 0,
+        r.share_count || 0,
+        r.feedback_count || 0,
+        use,
+      ].join(','));
+    }
+
+    const csv = '\ufeff' + lines.join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=funnel_stats.csv');
+    res.send(csv);
+  },
+
+  getWarningOverview(req, res) {
+    const { start_date, end_date } = req.query;
+
+    let startDate = start_date;
+    let endDate = end_date;
+    if (!startDate) {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      startDate = d.toISOString().split('T')[0];
+    }
+    if (!endDate) {
+      endDate = new Date().toISOString().split('T')[0];
+    }
+
+    const highRiskCount = db.prepare(`
+      SELECT COUNT(*) as c FROM content_review
+      WHERE risk_level >= 2 AND DATE(created_at) >= ? AND DATE(created_at) <= ?
+    `).get(startDate, endDate).c;
+
+    const pendingFeedbackCount = db.prepare(`
+      SELECT COUNT(*) as c FROM feedback WHERE status = 0
+    `).get().c;
+
+    const pendingReviewCount = db.prepare(`
+      SELECT COUNT(*) as c FROM content_review WHERE status = 0
+    `).get().c;
+
+    const newSensitiveCount = db.prepare(`
+      SELECT COUNT(*) as c FROM sensitive_word
+      WHERE DATE(created_at) >= ? AND DATE(created_at) <= ?
+    `).get(startDate, endDate).c;
+
+    const topApis = db.prepare(`
+      SELECT api_path, method, SUM(call_count) as total_calls
+      FROM api_stats
+      WHERE call_date >= ? AND call_date <= ?
+      GROUP BY api_path, method
+      ORDER BY total_calls DESC
+      LIMIT 10
+    `).all(startDate, endDate);
+
+    const dailyHighRisk = db.prepare(`
+      SELECT DATE(created_at) as stat_date, COUNT(*) as count
+      FROM content_review
+      WHERE risk_level >= 2 AND DATE(created_at) >= ? AND DATE(created_at) <= ?
+      GROUP BY DATE(created_at)
+      ORDER BY stat_date ASC
+    `).all(startDate, endDate);
+
+    const dailyFeedback = db.prepare(`
+      SELECT DATE(created_at) as stat_date, COUNT(*) as count
+      FROM feedback
+      WHERE DATE(created_at) >= ? AND DATE(created_at) <= ?
+      GROUP BY DATE(created_at)
+      ORDER BY stat_date ASC
+    `).all(startDate, endDate);
+
+    const dates = [];
+    const highRiskTrend = [];
+    const feedbackTrend = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const hrMap = {};
+    for (const d of dailyHighRisk) hrMap[d.stat_date] = d.count;
+    const fbMap = {};
+    for (const d of dailyFeedback) fbMap[d.stat_date] = d.count;
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      dates.push(dateStr);
+      highRiskTrend.push({ date: dateStr, count: hrMap[dateStr] || 0 });
+      feedbackTrend.push({ date: dateStr, count: fbMap[dateStr] || 0 });
+    }
+
+    res.json(success({
+      overview: {
+        high_risk_count: highRiskCount,
+        pending_feedback_count: pendingFeedbackCount,
+        pending_review_count: pendingReviewCount,
+        new_sensitive_count: newSensitiveCount,
+      },
+      top_apis: topApis,
+      dates,
+      high_risk_trend: highRiskTrend,
+      feedback_trend: feedbackTrend,
+      date_range: { start: startDate, end: endDate },
+    }));
   },
 };
 

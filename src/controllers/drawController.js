@@ -3,6 +3,7 @@ const { success, error } = require('../utils/response');
 const { randomPick } = require('../utils/random');
 const { generateShareTitle } = require('../utils/share');
 const { incrStat } = require('../utils/stats');
+const { checkSensitive, maskSensitive } = require('../utils/sensitive');
 
 const drawController = {
   drawCards(req, res) {
@@ -88,13 +89,32 @@ const drawController = {
     );
 
     db.prepare('UPDATE theme SET use_count = use_count + 1 WHERE id = ?').run(deck.theme_id);
-    incrStat(deck.theme_id, 'draw_count');
+    incrStat(deck.theme_id, 'card_count');
 
     if (question) {
       db.prepare(`
         INSERT OR REPLACE INTO user_preference (anonymous_id, theme_id, preference_type, value)
-        VALUES (?, ?, 'question', ?)
+        VALUES (?, ?, 'draw_question', ?)
       `).run(anonymousId, deck.theme_id, question);
+
+      const sens = checkSensitive(question);
+      if (sens.hasSensitive) {
+        const masked = maskSensitive(question);
+        db.prepare(`
+          INSERT INTO content_review
+            (content_type, content_id, content_text, masked_content, hit_words, risk_level, theme_id, anonymous_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          'draw_question',
+          insertResult.lastInsertRowid,
+          question,
+          masked,
+          JSON.stringify(sens.words),
+          sens.maxLevel,
+          deck.theme_id,
+          anonymousId
+        );
+      }
     }
 
     res.json(success({
@@ -149,7 +169,7 @@ const drawController = {
     );
 
     db.prepare('UPDATE theme SET use_count = use_count + 1 WHERE id = ?').run(theme_id);
-    incrStat(theme_id, 'draw_count');
+    incrStat(theme_id, 'lot_count');
 
     res.json(success({
       result_id: insertResult.lastInsertRowid,

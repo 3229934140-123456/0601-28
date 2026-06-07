@@ -52,6 +52,13 @@ const themeController = {
     db.prepare('UPDATE theme SET view_count = view_count + 1 WHERE id = ?').run(id);
     incrStat(id, 'view_count');
 
+    if (req.anonymousId) {
+      db.prepare(`
+        INSERT INTO user_view_log (anonymous_id, theme_id)
+        VALUES (?, ?)
+      `).run(req.anonymousId, id);
+    }
+
     const questions = db.prepare(`
       SELECT q.*,
         (SELECT COUNT(*) FROM option o WHERE o.question_id = q.id) as option_count
@@ -165,6 +172,7 @@ const themeController = {
 
     const deleteTx = db.transaction(() => {
       db.prepare('DELETE FROM user_preference WHERE theme_id = ?').run(id);
+      db.prepare('DELETE FROM user_view_log WHERE theme_id = ?').run(id);
       db.prepare('DELETE FROM submit_log WHERE theme_id = ?').run(id);
       db.prepare('DELETE FROM collection WHERE theme_id = ?').run(id);
       db.prepare('DELETE FROM fortune_result WHERE theme_id = ?').run(id);

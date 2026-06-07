@@ -158,12 +158,36 @@ const schemaSQL = `
     theme_id INTEGER NOT NULL,
     stat_date DATE NOT NULL,
     view_count INTEGER DEFAULT 0,
-    draw_count INTEGER DEFAULT 0,
+    card_count INTEGER DEFAULT 0,
+    lot_count INTEGER DEFAULT 0,
     fortune_count INTEGER DEFAULT 0,
     answer_count INTEGER DEFAULT 0,
     collect_count INTEGER DEFAULT 0,
     share_count INTEGER DEFAULT 0,
+    feedback_count INTEGER DEFAULT 0,
     UNIQUE(theme_id, stat_date)
+  );
+
+  CREATE TABLE IF NOT EXISTS content_review (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    content_type TEXT NOT NULL,
+    content_id INTEGER,
+    content_text TEXT,
+    masked_content TEXT,
+    hit_words TEXT,
+    risk_level INTEGER DEFAULT 1,
+    status INTEGER DEFAULT 0,
+    theme_id INTEGER,
+    anonymous_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS user_view_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    anonymous_id TEXT NOT NULL,
+    theme_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE INDEX IF NOT EXISTS idx_theme_status ON theme(status);
@@ -178,10 +202,32 @@ const schemaSQL = `
   CREATE INDEX IF NOT EXISTS idx_submit_log_anonymous ON submit_log(anonymous_id, theme_id);
   CREATE INDEX IF NOT EXISTS idx_fortune_created ON fortune_result(created_at);
   CREATE INDEX IF NOT EXISTS idx_collection_created ON collection(created_at);
+  CREATE INDEX IF NOT EXISTS idx_review_status ON content_review(status);
+  CREATE INDEX IF NOT EXISTS idx_review_type ON content_review(content_type);
+  CREATE INDEX IF NOT EXISTS idx_review_level ON content_review(risk_level);
+  CREATE INDEX IF NOT EXISTS idx_review_anonymous ON content_review(anonymous_id);
+  CREATE INDEX IF NOT EXISTS idx_view_anonymous ON user_view_log(anonymous_id);
+  CREATE INDEX IF NOT EXISTS idx_view_theme ON user_view_log(theme_id);
 `;
 
 function initSchema(db) {
   db.exec(schemaSQL);
+  migrateSchema(db);
+}
+
+function migrateSchema(db) {
+  const columns = db.prepare("PRAGMA table_info(theme_daily_stats)").all();
+  const colNames = columns.map(c => c.name);
+
+  if (!colNames.includes('card_count')) {
+    db.prepare("ALTER TABLE theme_daily_stats ADD COLUMN card_count INTEGER DEFAULT 0").run();
+  }
+  if (!colNames.includes('lot_count')) {
+    db.prepare("ALTER TABLE theme_daily_stats ADD COLUMN lot_count INTEGER DEFAULT 0").run();
+  }
+  if (!colNames.includes('feedback_count')) {
+    db.prepare("ALTER TABLE theme_daily_stats ADD COLUMN feedback_count INTEGER DEFAULT 0").run();
+  }
 }
 
 module.exports = { initSchema, schemaSQL };
