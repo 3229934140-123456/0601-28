@@ -65,7 +65,22 @@ const themeController = {
       `).all(q.id);
     }
 
-    res.json(success({ ...theme, questions }));
+    const interpretationCount = db.prepare(`
+      SELECT COUNT(*) as count FROM interpretation
+      WHERE theme_id = ? AND status = 1
+    `).get(id).count;
+
+    const deckCount = db.prepare(`
+      SELECT COUNT(*) as count FROM card_deck
+      WHERE theme_id = ? AND status = 1
+    `).get(id).count;
+
+    res.json(success({
+      ...theme,
+      questions,
+      interpretation_count: interpretationCount,
+      deck_count: deckCount,
+    }));
   },
 
   create(req, res) {
@@ -118,8 +133,59 @@ const themeController = {
 
   remove(req, res) {
     const { id } = req.params;
-    db.prepare('DELETE FROM theme WHERE id = ?').run(id);
-    res.json(success());
+    const { force = false } = req.query;
+
+    const theme = db.prepare('SELECT * FROM theme WHERE id = ?').get(id);
+    if (!theme) {
+      return res.status(404).json(error('主题不存在'));
+    }
+
+    const questionCount = db.prepare('SELECT COUNT(*) as count FROM question WHERE theme_id = ?').get(id).count;
+    const deckCount = db.prepare('SELECT COUNT(*) as count FROM card_deck WHERE theme_id = ?').get(id).count;
+    const interpretationCount = db.prepare('SELECT COUNT(*) as count FROM interpretation WHERE theme_id = ?').get(id).count;
+    const resultCount = db.prepare('SELECT COUNT(*) as count FROM fortune_result WHERE theme_id = ?').get(id).count;
+
+    const relations = {
+      questions: questionCount,
+      card_decks: deckCount,
+      interpretations: interpretationCount,
+      results: resultCount,
+    };
+
+    const totalRelations = questionCount + deckCount + interpretationCount + resultCount;
+
+    if (!force && totalRelations > 0) {
+      return res.status(400).json(error('该主题下存在关联内容，无法直接删除', 400, {
+        relations,
+        tip: '可先下线主题，或传入 force=true 强制级联删除所有关联内容',
+      }));
+    }
+
+    const deleteTx = db.transaction(() => {
+      db.prepare('DELETE FROM user_preference WHERE theme_id = ?').run(id);
+      db.prepare('DELETE FROM submit_log WHERE theme_id = ?').run(id);
+      db.prepare('DELETE FROM collection WHERE theme_id = ?').run(id);
+      db.prepare('DELETE FROM fortune_result WHERE theme_id = ?').run(id);
+      db.prepare('DELETE FROM interpretation WHERE theme_id = ?').run(id);
+
+      const decks = db.prepare('SELECT id FROM card_deck WHERE theme_id = ?').all(id);
+      for (const deck of decks) {
+        db.prepare('DELETE FROM card WHERE deck_id = ?').run(deck.id);
+      }
+      db.prepare('DELETE FROM card_deck WHERE theme_id = ?').run(id);
+
+      const questions = db.prepare('SELECT id FROM question WHERE theme_id = ?').all(id);
+      for (const q of questions) {
+        db.prepare('DELETE FROM option WHERE question_id = ?').run(q.id);
+      }
+      db.prepare('DELETE FROM question WHERE theme_id = ?').run(id);
+
+      db.prepare('DELETE FROM theme WHERE id = ?').run(id);
+    });
+
+    deleteTx();
+
+    res.json(success({ deleted: true, relations }));
   },
 
   hotRank(req, res) {

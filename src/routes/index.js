@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
 
+const db = require('../config/database');
+
 const themeController = require('../controllers/themeController');
 const questionController = require('../controllers/questionController');
 const cardDeckController = require('../controllers/cardDeckController');
+const interpretationController = require('../controllers/interpretationController');
 const drawController = require('../controllers/drawController');
 const fortuneController = require('../controllers/fortuneController');
 const resultController = require('../controllers/resultController');
@@ -11,6 +14,19 @@ const shareController = require('../controllers/shareController');
 const adminController = require('../controllers/adminController');
 
 const { submitLimit } = require('../middleware/rateLimit');
+
+function resolveDrawThemeId(req) {
+  let themeId = req.body?.theme_id || req.query.theme_id;
+  if (themeId) return themeId;
+
+  const deckId = req.body?.deck_id || req.query.deck_id;
+  if (deckId) {
+    const deck = db.prepare('SELECT theme_id FROM card_deck WHERE id = ?').get(deckId);
+    return deck?.theme_id || null;
+  }
+
+  return null;
+}
 
 // 题库 - 主题
 router.get('/themes', themeController.list);
@@ -34,8 +50,18 @@ router.post('/card-decks', cardDeckController.create);
 router.put('/card-decks/:id', cardDeckController.update);
 router.delete('/card-decks/:id', cardDeckController.remove);
 
+// 解读库
+router.get('/interpretations', interpretationController.list);
+router.get('/interpretations/:id', interpretationController.detail);
+router.post('/interpretations', interpretationController.create);
+router.put('/interpretations/:id', interpretationController.update);
+router.delete('/interpretations/:id', interpretationController.remove);
+router.post('/interpretations/batch-offline', interpretationController.batchOffline);
+router.post('/interpretations/match/score', interpretationController.matchByScore);
+router.post('/interpretations/match/key', interpretationController.matchByKey);
+
 // 抽签
-router.post('/draw/cards', submitLimit('theme_id', 10), drawController.drawCards);
+router.post('/draw/cards', submitLimit(resolveDrawThemeId, 10), drawController.drawCards);
 router.post('/draw/lot', submitLimit('theme_id', 10), drawController.drawLot);
 router.post('/draw/answer', submitLimit('theme_id', 10), drawController.submitAnswer);
 
@@ -57,6 +83,8 @@ router.post('/share/record', shareController.recordShare);
 
 // 风控 & 运营
 router.get('/admin/stats', adminController.getStats);
+router.get('/admin/theme-stats', adminController.getThemeStats);
+router.get('/admin/theme-trend', adminController.getThemeTrend);
 
 router.get('/feedbacks', adminController.feedbackList);
 router.post('/feedbacks', adminController.submitFeedback);

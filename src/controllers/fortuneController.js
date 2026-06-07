@@ -45,8 +45,8 @@ const fortuneController = {
     const shareTitle = generateShareTitle(themeName, themeType, title);
 
     const insertResult = db.prepare(`
-      INSERT INTO fortune_result (theme_id, result_key, title, content, birthday, anonymous_id, share_title, score)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fortune_result (theme_id, result_key, title, content, birthday, anonymous_id, share_title, score, result_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'constellation')
     `).run(
       theme_id || 0,
       `zodiac_${zodiac.name}`,
@@ -188,8 +188,8 @@ const fortuneController = {
     const shareTitle = generateShareTitle(themeName, themeType, '我的八字');
 
     const insertResult = db.prepare(`
-      INSERT INTO fortune_result (theme_id, result_key, title, content, birthday, anonymous_id, share_title)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fortune_result (theme_id, result_key, title, content, birthday, anonymous_id, share_title, result_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'bazi')
     `).run(
       theme_id || 0,
       `bazi_${eightChar.replace(/ /g, '')}`,

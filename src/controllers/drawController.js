@@ -75,8 +75,8 @@ const drawController = {
     const shareTitle = generateShareTitle(theme?.name, theme?.type, resultTitle);
 
     const insertResult = db.prepare(`
-      INSERT INTO fortune_result (theme_id, result_key, title, content, cards, anonymous_id, share_title)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fortune_result (theme_id, result_key, title, content, cards, anonymous_id, share_title, result_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'cards')
     `).run(
       deck.theme_id,
       resultKey,
@@ -135,8 +135,8 @@ const drawController = {
     const shareTitle = generateShareTitle(theme.name, theme.type, result.title);
 
     const insertResult = db.prepare(`
-      INSERT INTO fortune_result (theme_id, result_key, title, content, score, anonymous_id, share_title)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fortune_result (theme_id, result_key, title, content, score, anonymous_id, share_title, result_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'lot')
     `).run(
       theme_id,
       result.result_key || ('lot_' + result.id),
@@ -218,8 +218,8 @@ const drawController = {
     const shareTitle = generateShareTitle(theme.name, theme.type, resultTitle);
 
     const insertResult = db.prepare(`
-      INSERT INTO fortune_result (theme_id, result_key, title, content, score, anonymous_id, share_title)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fortune_result (theme_id, result_key, title, content, score, anonymous_id, share_title, result_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'answer')
     `).run(
       theme_id,
       matchedResult?.result_key || `score_${totalScore}`,

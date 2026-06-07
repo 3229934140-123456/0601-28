@@ -115,9 +115,22 @@ const questionController = {
 
   remove(req, res) {
     const { id } = req.params;
-    db.prepare('DELETE FROM question WHERE id = ?').run(id);
-    db.prepare('DELETE FROM option WHERE question_id = ?').run(id);
-    res.json(success());
+
+    const question = db.prepare('SELECT * FROM question WHERE id = ?').get(id);
+    if (!question) {
+      return res.status(404).json(error('问题不存在'));
+    }
+
+    const optionCount = db.prepare('SELECT COUNT(*) as count FROM option WHERE question_id = ?').get(id).count;
+
+    const deleteTx = db.transaction(() => {
+      db.prepare('DELETE FROM option WHERE question_id = ?').run(id);
+      db.prepare('DELETE FROM question WHERE id = ?').run(id);
+    });
+
+    deleteTx();
+
+    res.json(success({ deleted: true, option_count: optionCount }));
   },
 };
 

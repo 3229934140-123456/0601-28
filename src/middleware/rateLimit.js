@@ -36,10 +36,33 @@ function rateLimit(options = {}) {
   };
 }
 
-function submitLimit(themeIdKey = 'theme_id', intervalSeconds = 10) {
+function submitLimit(options = {}, intervalSeconds = 10) {
+  let themeIdResolver;
+
+  if (typeof options === 'string') {
+    const key = options;
+    themeIdResolver = (req) => {
+      return req.body?.[key] || req.params[key] || req.query[key];
+    };
+  } else if (typeof options === 'function') {
+    themeIdResolver = options;
+  } else {
+    const key = options.key || 'theme_id';
+    themeIdResolver = (req) => {
+      return req.body?.[key] || req.params[key] || req.query[key];
+    };
+    if (options.interval) intervalSeconds = options.interval;
+  }
+
   return (req, res, next) => {
     const anonymousId = req.anonymousId;
-    const themeId = req.body?.[themeIdKey] || req.params[themeIdKey] || req.query[themeIdKey];
+    let themeId;
+
+    try {
+      themeId = themeIdResolver(req);
+    } catch (e) {
+      return next(e);
+    }
 
     if (!themeId) return next();
 

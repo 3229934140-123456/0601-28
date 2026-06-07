@@ -261,6 +261,215 @@ const adminController = {
 
     res.json(success(prefs));
   },
+
+  getThemeStats(req, res) {
+    const { start_date, end_date, type, limit = 20, sort_by = 'use_count' } = req.query;
+    const l = parseInt(limit);
+
+    let where = 't.status = 1';
+    const params = [];
+
+    if (type) {
+      where += ' AND t.type = ?';
+      params.push(type);
+    }
+
+    const sortFields = ['view_count', 'use_count', 'draw_count', 'fortune_count', 'collect_count', 'share_count'];
+    const sortField = sortFields.includes(sort_by) ? sort_by : 'use_count';
+
+    const resultWhere = [];
+    const resultParams = [];
+    if (start_date) {
+      resultWhere.push('DATE(fr.created_at) >= ?');
+      resultParams.push(start_date);
+    }
+    if (end_date) {
+      resultWhere.push('DATE(fr.created_at) <= ?');
+      resultParams.push(end_date);
+    }
+    const resultWhereSql = resultWhere.length > 0 ? ' AND ' + resultWhere.join(' AND ') : '';
+
+    const collectWhere = [];
+    const collectParams = [];
+    if (start_date) {
+      collectWhere.push('DATE(c.created_at) >= ?');
+      collectParams.push(start_date);
+    }
+    if (end_date) {
+      collectWhere.push('DATE(c.created_at) <= ?');
+      collectParams.push(end_date);
+    }
+    const collectWhereSql = collectWhere.length > 0 ? ' AND ' + collectWhere.join(' AND ') : '';
+
+    const items = db.prepare(`
+      SELECT t.id, t.name, t.type, t.cover_image, t.view_count, t.use_count,
+        COALESCE(draw.draw_count, 0) as draw_count,
+        COALESCE(fortune.fortune_count, 0) as fortune_count,
+        COALESCE(ans.answer_count, 0) as answer_count,
+        COALESCE(col.collect_count, 0) as collect_count,
+        COALESCE(sh.share_count, 0) as share_count
+      FROM theme t
+      LEFT JOIN (
+        SELECT theme_id, COUNT(*) as draw_count
+        FROM fortune_result fr
+        WHERE result_type IN ('cards', 'lot', 'draw') ${resultWhereSql}
+        GROUP BY theme_id
+      ) draw ON draw.theme_id = t.id
+      LEFT JOIN (
+        SELECT theme_id, COUNT(*) as fortune_count
+        FROM fortune_result fr
+        WHERE result_type IN ('constellation', 'bazi') ${resultWhereSql}
+        GROUP BY theme_id
+      ) fortune ON fortune.theme_id = t.id
+      LEFT JOIN (
+        SELECT theme_id, COUNT(*) as answer_count
+        FROM fortune_result fr
+        WHERE result_type = 'answer' ${resultWhereSql}
+        GROUP BY theme_id
+      ) ans ON ans.theme_id = t.id
+      LEFT JOIN (
+        SELECT theme_id, COUNT(*) as collect_count
+        FROM collection c
+        WHERE 1=1 ${collectWhereSql}
+        GROUP BY theme_id
+      ) col ON col.theme_id = t.id
+      LEFT JOIN (
+        SELECT fr.theme_id, SUM(fr.share_count) as share_count
+        FROM fortune_result fr
+        WHERE 1=1 ${resultWhereSql}
+        GROUP BY fr.theme_id
+      ) sh ON sh.theme_id = t.id
+      WHERE ${where}
+      ORDER BY ${sortField} DESC, t.id DESC
+      LIMIT ?
+    `).all(...resultParams, ...resultParams, ...resultParams, ...collectParams, ...resultParams, ...params, l);
+
+    const totals = {
+      view_count: items.reduce((sum, i) => sum + i.view_count, 0),
+      use_count: items.reduce((sum, i) => sum + i.use_count, 0),
+      draw_count: items.reduce((sum, i) => sum + i.draw_count, 0),
+      fortune_count: items.reduce((sum, i) => sum + i.fortune_count, 0),
+      answer_count: items.reduce((sum, i) => sum + i.answer_count, 0),
+      collect_count: items.reduce((sum, i) => sum + i.collect_count, 0),
+      share_count: items.reduce((sum, i) => sum + i.share_count, 0),
+    };
+
+    res.json(success({
+      items,
+      totals,
+      sort_by: sortField,
+    }));
+  },
+
+  getThemeTrend(req, res) {
+    const { theme_id, start_date, end_date, type } = req.query;
+
+    const resultConditions = ['1=1'];
+    const params = [];
+
+    if (start_date) {
+      resultConditions.push('DATE(created_at) >= ?');
+      params.push(start_date);
+    }
+    if (end_date) {
+      resultConditions.push('DATE(created_at) <= ?');
+      params.push(end_date);
+    }
+
+    if (!start_date && !end_date) {
+      resultConditions.push("DATE(created_at) >= DATE('now', '-30 days')");
+    }
+
+    if (theme_id) {
+      resultConditions.push('theme_id = ?');
+      params.push(theme_id);
+    }
+
+    const whereSql = resultConditions.join(' AND ');
+
+    const resultRows = db.prepare(`
+      SELECT
+        DATE(created_at) as date,
+        result_type,
+        COUNT(*) as count
+      FROM fortune_result
+      WHERE ${whereSql}
+      GROUP BY DATE(created_at), result_type
+      ORDER BY date ASC
+    `).all(...params);
+
+    const collectConditions = ['1=1'];
+    const collectParams = [];
+
+    if (start_date) {
+      collectConditions.push('DATE(created_at) >= ?');
+      collectParams.push(start_date);
+    }
+    if (end_date) {
+      collectConditions.push('DATE(created_at) <= ?');
+      collectParams.push(end_date);
+    }
+    if (!start_date && !end_date) {
+      collectConditions.push("DATE(created_at) >= DATE('now', '-30 days')");
+    }
+    if (theme_id) {
+      collectConditions.push('theme_id = ?');
+      collectParams.push(theme_id);
+    }
+
+    const collectWhereSql = collectConditions.join(' AND ');
+
+    const collectRows = db.prepare(`
+      SELECT
+        DATE(created_at) as date,
+        COUNT(*) as count
+      FROM collection
+      WHERE ${collectWhereSql}
+      GROUP BY DATE(created_at)
+      ORDER BY date ASC
+    `).all(...collectParams);
+
+    const dateSet = new Set();
+    resultRows.forEach(r => dateSet.add(r.date));
+    collectRows.forEach(r => dateSet.add(r.date));
+    const dates = Array.from(dateSet).sort();
+
+    const drawMap = {};
+    const fortuneMap = {};
+    const answerMap = {};
+    const collectMap = {};
+
+    resultRows.forEach(r => {
+      if (r.result_type === 'cards' || r.result_type === 'lot' || r.result_type === 'draw') {
+        drawMap[r.date] = (drawMap[r.date] || 0) + r.count;
+      } else if (r.result_type === 'constellation' || r.result_type === 'bazi') {
+        fortuneMap[r.date] = (fortuneMap[r.date] || 0) + r.count;
+      } else if (r.result_type === 'answer') {
+        answerMap[r.date] = (answerMap[r.date] || 0) + r.count;
+      } else {
+        drawMap[r.date] = (drawMap[r.date] || 0) + r.count;
+      }
+    });
+
+    collectRows.forEach(r => {
+      collectMap[r.date] = r.count;
+    });
+
+    const trend = dates.map(date => ({
+      date,
+      draw_count: drawMap[date] || 0,
+      fortune_count: fortuneMap[date] || 0,
+      answer_count: answerMap[date] || 0,
+      total_count: (drawMap[date] || 0) + (fortuneMap[date] || 0) + (answerMap[date] || 0),
+      collect_count: collectMap[date] || 0,
+    }));
+
+    res.json(success({
+      dates,
+      trend,
+      indicators: ['draw_count', 'fortune_count', 'answer_count', 'total_count', 'collect_count'],
+    }));
+  },
 };
 
 module.exports = adminController;

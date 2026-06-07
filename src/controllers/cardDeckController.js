@@ -151,9 +151,22 @@ const cardDeckController = {
 
   remove(req, res) {
     const { id } = req.params;
-    db.prepare('DELETE FROM card_deck WHERE id = ?').run(id);
-    db.prepare('DELETE FROM card WHERE deck_id = ?').run(id);
-    res.json(success());
+
+    const deck = db.prepare('SELECT * FROM card_deck WHERE id = ?').get(id);
+    if (!deck) {
+      return res.status(404).json(error('牌组不存在'));
+    }
+
+    const cardCount = db.prepare('SELECT COUNT(*) as count FROM card WHERE deck_id = ?').get(id).count;
+
+    const deleteTx = db.transaction(() => {
+      db.prepare('DELETE FROM card WHERE deck_id = ?').run(id);
+      db.prepare('DELETE FROM card_deck WHERE id = ?').run(id);
+    });
+
+    deleteTx();
+
+    res.json(success({ deleted: true, card_count: cardCount }));
   },
 };
 

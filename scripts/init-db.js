@@ -70,12 +70,13 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS interpretation (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     theme_id INTEGER NOT NULL,
-    result_key TEXT NOT NULL,
+    result_key TEXT,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     score_min INTEGER DEFAULT 0,
     score_max INTEGER DEFAULT 100,
     sort_order INTEGER DEFAULT 0,
+    status INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (theme_id) REFERENCES theme(id)
   );

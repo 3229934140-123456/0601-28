@@ -43,6 +43,13 @@ const shareController = {
     const { result_id, channel } = req.body;
     const anonymousId = req.anonymousId;
 
+    if (result_id) {
+      const result = db.prepare('SELECT id, theme_id FROM fortune_result WHERE id = ?').get(result_id);
+      if (result) {
+        db.prepare('UPDATE fortune_result SET share_count = share_count + 1 WHERE id = ?').run(result_id);
+      }
+    }
+
     db.prepare(`
       INSERT OR REPLACE INTO user_preference (anonymous_id, theme_id, preference_type, value)
       VALUES (?, 0, 'share_channel', ?)
