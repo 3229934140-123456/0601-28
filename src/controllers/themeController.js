@@ -1,6 +1,7 @@
 const db = require('../config/database');
 const { success, error, paginate } = require('../utils/response');
 const { checkSensitive } = require('../utils/sensitive');
+const { incrStat } = require('../utils/stats');
 
 const themeController = {
   list(req, res) {
@@ -49,6 +50,7 @@ const themeController = {
     }
 
     db.prepare('UPDATE theme SET view_count = view_count + 1 WHERE id = ?').run(id);
+    incrStat(id, 'view_count');
 
     const questions = db.prepare(`
       SELECT q.*,

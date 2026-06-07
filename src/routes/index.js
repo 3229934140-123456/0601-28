@@ -71,8 +71,8 @@ router.get('/fortune/zodiac', fortuneController.zodiacDetail);
 router.post('/fortune/eight-char', fortuneController.eightChar);
 
 // 结果
-router.get('/results/:id', resultController.detail);
 router.get('/results/my/list', resultController.myList);
+router.get('/results/:id', resultController.detail);
 router.post('/results/collect', resultController.collect);
 router.get('/collections', resultController.collectionList);
 

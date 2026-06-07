@@ -2,7 +2,7 @@ const db = require('../config/database');
 const { success, error } = require('../utils/response');
 const { randomPick } = require('../utils/random');
 const { generateShareTitle } = require('../utils/share');
-const { checkSensitive } = require('../utils/sensitive');
+const { incrStat } = require('../utils/stats');
 
 const drawController = {
   drawCards(req, res) {
@@ -88,6 +88,7 @@ const drawController = {
     );
 
     db.prepare('UPDATE theme SET use_count = use_count + 1 WHERE id = ?').run(deck.theme_id);
+    incrStat(deck.theme_id, 'draw_count');
 
     if (question) {
       db.prepare(`
@@ -122,12 +123,12 @@ const drawController = {
 
     const interpretations = db.prepare(`
       SELECT * FROM interpretation
-      WHERE theme_id = ?
+      WHERE theme_id = ? AND status = 1
       ORDER BY sort_order ASC
     `).all(theme_id);
 
     if (interpretations.length === 0) {
-      return res.status(400).json(error('该主题暂无签文'));
+      return res.status(400).json(error('该主题暂无可用于抽签的解读，请联系运营配置', 1001, { theme_id }));
     }
 
     const result = randomPick(interpretations, 1, false)[0];
@@ -148,6 +149,7 @@ const drawController = {
     );
 
     db.prepare('UPDATE theme SET use_count = use_count + 1 WHERE id = ?').run(theme_id);
+    incrStat(theme_id, 'draw_count');
 
     res.json(success({
       result_id: insertResult.lastInsertRowid,
@@ -191,9 +193,13 @@ const drawController = {
 
     const interpretations = db.prepare(`
       SELECT * FROM interpretation
-      WHERE theme_id = ?
+      WHERE theme_id = ? AND status = 1
       ORDER BY sort_order ASC
     `).all(theme_id);
+
+    if (interpretations.length === 0) {
+      return res.status(400).json(error('该主题暂无可用于答题的解读，请联系运营配置', 1001, { theme_id }));
+    }
 
     let matchedResult = null;
     for (const interp of interpretations) {
@@ -231,6 +237,7 @@ const drawController = {
     );
 
     db.prepare('UPDATE theme SET use_count = use_count + 1 WHERE id = ?').run(theme_id);
+    incrStat(theme_id, 'answer_count');
 
     res.json(success({
       result_id: insertResult.lastInsertRowid,

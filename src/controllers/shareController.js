@@ -1,6 +1,7 @@
 const db = require('../config/database');
 const { success, error } = require('../utils/response');
 const { generateShareTitle } = require('../utils/share');
+const { incrStat } = require('../utils/stats');
 
 const shareController = {
   getShareInfo(req, res) {
@@ -47,6 +48,7 @@ const shareController = {
       const result = db.prepare('SELECT id, theme_id FROM fortune_result WHERE id = ?').get(result_id);
       if (result) {
         db.prepare('UPDATE fortune_result SET share_count = share_count + 1 WHERE id = ?').run(result_id);
+        incrStat(result.theme_id, 'share_count');
       }
     }
 

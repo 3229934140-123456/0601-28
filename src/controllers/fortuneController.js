@@ -2,6 +2,7 @@ const db = require('../config/database');
 const { success, error } = require('../utils/response');
 const { getZodiac, getChineseZodiac, getAge, getConstellationLuck, parseBirthday } = require('../utils/fortune');
 const { generateShareTitle } = require('../utils/share');
+const { incrStat } = require('../utils/stats');
 
 const fortuneController = {
   constellation(req, res) {
@@ -60,6 +61,7 @@ const fortuneController = {
 
     if (theme_id) {
       db.prepare('UPDATE theme SET use_count = use_count + 1 WHERE id = ?').run(theme_id);
+      incrStat(theme_id, 'fortune_count');
     }
 
     db.prepare(`
@@ -202,6 +204,7 @@ const fortuneController = {
 
     if (theme_id) {
       db.prepare('UPDATE theme SET use_count = use_count + 1 WHERE id = ?').run(theme_id);
+      incrStat(theme_id, 'fortune_count');
     }
 
     res.json(success({

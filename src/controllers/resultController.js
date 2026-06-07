@@ -1,5 +1,7 @@
 const db = require('../config/database');
-const { success, error } = require('../utils/response');
+const { success, error, paginate } = require('../utils/response');
+const { generateShareInfo } = require('../utils/share');
+const { incrStat } = require('../utils/stats');
 
 const resultController = {
   detail(req, res) {
@@ -180,6 +182,7 @@ const resultController = {
     );
 
     db.prepare('UPDATE fortune_result SET is_collected = 1 WHERE id = ?').run(result_id);
+    incrStat(result.theme_id, 'collect_count');
 
     res.json(success({ collected: true }));
   },
