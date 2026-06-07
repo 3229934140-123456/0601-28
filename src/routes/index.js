@@ -85,10 +85,13 @@ router.post('/share/record', shareController.recordShare);
 router.get('/admin/stats', adminController.getStats);
 router.get('/admin/theme-stats', adminController.getThemeStats);
 router.get('/admin/theme-trend', adminController.getThemeTrend);
+router.get('/admin/funnel-stats', adminController.getFunnelStats);
 
 router.get('/feedbacks', adminController.feedbackList);
+router.get('/feedbacks/:id', adminController.feedbackDetail);
 router.post('/feedbacks', adminController.submitFeedback);
 router.put('/feedbacks/status', adminController.updateFeedbackStatus);
+router.put('/feedbacks/batch-status', adminController.batchUpdateFeedbackStatus);
 
 router.get('/banners', adminController.bannerList);
 router.post('/banners', adminController.createBanner);
@@ -97,9 +100,11 @@ router.delete('/banners/:id', adminController.removeBanner);
 
 router.get('/sensitive-words', adminController.sensitiveWordsList);
 router.post('/sensitive-words', adminController.addSensitiveWord);
+router.post('/sensitive-words/batch', adminController.batchAddSensitiveWords);
 router.delete('/sensitive-words/:id', adminController.removeSensitiveWord);
 router.post('/sensitive-check', adminController.checkContent);
 
 router.get('/user/preferences', adminController.userPreferences);
+router.get('/user/profile', adminController.userProfile);
 
 module.exports = router;
